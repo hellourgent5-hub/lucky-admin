@@ -1,27 +1,30 @@
+// src/routes/adminRoutes.js
+
 const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const User = require("../models/User"); // adjust path if needed
+const User = require("../models/User");
 
-// Admin Login
+// ✅ Admin Login
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    const admin = await User.findOne({ email, isAdmin: true });
 
-    if (!admin) {
-      return res.status(404).json({ message: "Admin not found" });
-    }
+    // 1️⃣ Check if admin user exists
+    const adminUser = await User.findOne({ email, isAdmin: true });
+    if (!adminUser)
+      return res.status(401).json({ message: "Admin not found" });
 
-    const isMatch = await bcrypt.compare(password, admin.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: "Invalid password" });
-    }
+    // 2️⃣ Compare password
+    const isMatch = await bcrypt.compare(password, adminUser.password);
+    if (!isMatch)
+      return res.status(401).json({ message: "Invalid password" });
 
+    // 3️⃣ Generate JWT token
     const token = jwt.sign(
-      { id: admin._id, isAdmin: admin.isAdmin },
-      process.env.JWT_SECRET || "secretkey",
+      { id: adminUser._id, email: adminUser.email, isAdmin: true },
+      process.env.JWT_SECRET || "testsecretkey",
       { expiresIn: "7d" }
     );
 
@@ -29,15 +32,20 @@ router.post("/login", async (req, res) => {
       message: "Login successful",
       token,
       admin: {
-        id: admin._id,
-        name: admin.name,
-        email: admin.email,
+        id: adminUser._id,
+        name: adminUser.name,
+        email: adminUser.email,
       },
     });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ message: "Server error" });
+    console.error("Admin login error:", err);
+    res.status(500).json({ message: "Server error during login" });
   }
+});
+
+// ✅ Protected route example (optional)
+router.get("/dashboard", async (req, res) => {
+  res.json({ message: "Welcome, Admin Dashboard Active" });
 });
 
 module.exports = router;
