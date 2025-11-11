@@ -1,22 +1,22 @@
+// src/api/api.js
+
 import axios from "axios";
 
+// Create an Axios instance with your backend URL
 const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:10000",
-  headers: { "Content-Type": "application/json" }
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api",
+  headers: {
+    "Content-Type": "application/json",
+  },
 });
 
+// Optional: attach token automatically for protected routes
 API.interceptors.request.use((config) => {
   const token = localStorage.getItem("adminToken");
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
-
-API.interceptors.response.use((res) => res, (err) => {
-  if (err.response && err.response.status === 401) {
-    localStorage.removeItem("adminToken");
-    window.location.href = "/";
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
-  return Promise.reject(err);
+  return config;
 });
 
 export default API;
