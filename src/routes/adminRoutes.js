@@ -1,51 +1,49 @@
-// src/routes/adminRoutes.js
-
 const express = require("express");
-const router = express.Router();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
-// ✅ Admin Login
+const router = express.Router();
+
+// Admin login
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
+    const admin = await User.findOne({ email, isAdmin: true });
+    if (!admin) return res.status(404).json({ message: "Admin not found" });
 
-    // 1️⃣ Check if admin user exists
-    const adminUser = await User.findOne({ email, isAdmin: true });
-    if (!adminUser)
-      return res.status(401).json({ message: "Admin not found" });
+    const isMatch = await bcrypt.compare(password, admin.password);
+    if (!isMatch) return res.status(400).json({ message: "Wrong password" });
 
-    // 2️⃣ Compare password
-    const isMatch = await bcrypt.compare(password, adminUser.password);
-    if (!isMatch)
-      return res.status(401).json({ message: "Invalid password" });
-
-    // 3️⃣ Generate JWT token
-    const token = jwt.sign(
-      { id: adminUser._id, email: adminUser.email, isAdmin: true },
-      process.env.JWT_SECRET || "testsecretkey",
-      { expiresIn: "7d" }
-    );
-
-    res.json({
-      message: "Login successful",
-      token,
-      admin: {
-        id: adminUser._id,
-        name: adminUser.name,
-        email: adminUser.email,
-      },
-    });
+    const token = jwt.sign({ id: admin._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+    res.json({ token, admin: { name: admin.name, email: admin.email } });
   } catch (err) {
-    console.error("Admin login error:", err);
-    res.status(500).json({ message: "Server error during login" });
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
-// ✅ Protected route example (optional)
-router.get("/dashboard", async (req, res) => {
-  res.json({ message: "Welcome, Admin Dashboard Active" });
+// Reset or create admin — fully safe
+router.get("/reset-admin", async (req, res) => {
+  try {
+    const adminEmail = "admin@example.com";
+    const hashedPassword = await bcrypt.hash("123456", 10);
+
+    // 1. Remove any conflicting admin documents
+    await User.deleteMany({ email: adminEmail, isAdmin: { $ne: true } });
+
+    // 2. Upsert admin safely
+    await User.updateOne(
+      { email: adminEmail, isAdmin: true },
+      { $set: { name: "Admin", password: hashedPassword, isAdmin: true } },
+      { upsert: true }
+    );
+
+    res.json({ message: "Admin password reset to 123456 ✅" });
+  } catch (err) {
+    console.error("Reset admin error:", err);
+    res.status(500).json({ message: "Error resetting admin" });
+  }
 });
 
 module.exports = router;
